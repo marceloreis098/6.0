@@ -14,7 +14,7 @@ const Icon: React.FC<IconProps> = ({ name, color, size, className }) => {
   const LucideIcon = icons[name] as React.ElementType;
 
   if (!LucideIcon) {
-    console.warn(`Icon "${name}" not found in lucide-react`);
+    console.warn(`Icon "${String(name)}" not found in lucide-react`);
     return null;
   }
 

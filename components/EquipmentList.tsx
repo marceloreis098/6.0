@@ -5,6 +5,7 @@ import { getEquipment, addEquipment, updateEquipment, deleteEquipment, getEquipm
 import Icon from './common/Icon';
 import TermoResponsabilidade from './TermoResponsabilidade';
 
+// --- MODAL DE FORMULÁRIO (CRIAR/EDITAR) ---
 interface EquipmentFormModalProps {
     equipment: Equipment | null;
     onClose: () => void;
@@ -55,7 +56,6 @@ const EquipmentFormModal: React.FC<EquipmentFormModalProps> = ({ equipment, onCl
         setIsSaving(true);
         setSaveError('');
 
-        // Basic validation for required fields
         if (!formData.equipamento || !formData.serial) {
             setSaveError('Equipamento e Serial são campos obrigatórios.');
             setIsSaving(false);
@@ -80,7 +80,6 @@ const EquipmentFormModal: React.FC<EquipmentFormModalProps> = ({ equipment, onCl
             if (error instanceof TypeError && message === 'Failed to fetch') {
                 message = "Erro de conexão com o servidor. Verifique se a API (backend) está rodando na porta 3001.";
             } else if (message.includes('Database error')) {
-                // Tenta limpar a mensagem de erro do banco para ficar mais legível se possível
                 message = `Erro no Banco de Dados: ${message.replace('Database error: ', '')}`;
             }
 
@@ -161,6 +160,181 @@ const EquipmentFormModal: React.FC<EquipmentFormModalProps> = ({ equipment, onCl
     );
 };
 
+// --- MODAL DE DETALHES E HISTÓRICO ---
+interface EquipmentDetailsModalProps {
+    equipment: Equipment;
+    onClose: () => void;
+    currentUser: User;
+    companyName: string;
+}
+
+const EquipmentDetailsModal: React.FC<EquipmentDetailsModalProps> = ({ equipment, onClose, currentUser, companyName }) => {
+    const [activeTab, setActiveTab] = useState<'details' | 'history' | 'terms'>('details');
+    const [history, setHistory] = useState<EquipmentHistory[]>([]);
+    const [loadingHistory, setLoadingHistory] = useState(false);
+    const [selectedTermo, setSelectedTermo] = useState<'entrega' | 'devolucao' | null>(null);
+
+    useEffect(() => {
+        if (activeTab === 'history') {
+            setLoadingHistory(true);
+            getEquipmentHistory(equipment.id)
+                .then(data => setHistory(data))
+                .catch(err => console.error("Erro ao buscar histórico", err))
+                .finally(() => setLoadingHistory(false));
+        }
+    }, [activeTab, equipment.id]);
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-[60] p-4">
+            <div className="bg-white dark:bg-dark-card rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+                <div className="p-4 border-b dark:border-dark-border flex justify-between items-center">
+                    <h3 className="text-xl font-bold text-brand-dark dark:text-dark-text-primary flex items-center gap-2">
+                        <Icon name="Computer" size={20} />
+                        Detalhes do Equipamento
+                    </h3>
+                    <button onClick={onClose} className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white">
+                        <Icon name="X" size={24} />
+                    </button>
+                </div>
+                
+                {/* Tabs */}
+                <div className="flex border-b dark:border-dark-border">
+                    <button 
+                        onClick={() => setActiveTab('details')}
+                        className={`px-6 py-3 text-sm font-medium ${activeTab === 'details' ? 'border-b-2 border-brand-primary text-brand-primary' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}
+                    >
+                        Detalhes
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('history')}
+                        className={`px-6 py-3 text-sm font-medium ${activeTab === 'history' ? 'border-b-2 border-brand-primary text-brand-primary' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}
+                    >
+                        Histórico de Edição
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('terms')}
+                        className={`px-6 py-3 text-sm font-medium ${activeTab === 'terms' ? 'border-b-2 border-brand-primary text-brand-primary' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}
+                    >
+                        Termos
+                    </button>
+                </div>
+
+                <div className="p-6 overflow-y-auto">
+                    {activeTab === 'details' && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                             <div className="p-3 bg-gray-50 dark:bg-dark-bg rounded border dark:border-dark-border">
+                                <span className="block text-xs text-gray-500 uppercase">Equipamento</span>
+                                <span className="font-medium text-gray-900 dark:text-white">{equipment.equipamento}</span>
+                            </div>
+                            <div className="p-3 bg-gray-50 dark:bg-dark-bg rounded border dark:border-dark-border">
+                                <span className="block text-xs text-gray-500 uppercase">Serial</span>
+                                <span className="font-mono text-gray-900 dark:text-white">{equipment.serial}</span>
+                            </div>
+                            <div className="p-3 bg-gray-50 dark:bg-dark-bg rounded border dark:border-dark-border">
+                                <span className="block text-xs text-gray-500 uppercase">Patrimônio</span>
+                                <span className="font-medium text-gray-900 dark:text-white">{equipment.patrimonio || '-'}</span>
+                            </div>
+                            <div className="p-3 bg-gray-50 dark:bg-dark-bg rounded border dark:border-dark-border">
+                                <span className="block text-xs text-gray-500 uppercase">Usuário Atual</span>
+                                <span className="font-medium text-gray-900 dark:text-white">{equipment.usuarioAtual || '-'}</span>
+                            </div>
+                             <div className="p-3 bg-gray-50 dark:bg-dark-bg rounded border dark:border-dark-border">
+                                <span className="block text-xs text-gray-500 uppercase">Marca/Modelo</span>
+                                <span className="font-medium text-gray-900 dark:text-white">{equipment.brand} {equipment.model}</span>
+                            </div>
+                            <div className="p-3 bg-gray-50 dark:bg-dark-bg rounded border dark:border-dark-border">
+                                <span className="block text-xs text-gray-500 uppercase">Status</span>
+                                <span className="font-medium text-gray-900 dark:text-white">{equipment.status}</span>
+                            </div>
+                             <div className="p-3 bg-gray-50 dark:bg-dark-bg rounded border dark:border-dark-border">
+                                <span className="block text-xs text-gray-500 uppercase">Setor/Local</span>
+                                <span className="font-medium text-gray-900 dark:text-white">{equipment.setor} / {equipment.local}</span>
+                            </div>
+                            <div className="p-3 bg-gray-50 dark:bg-dark-bg rounded border dark:border-dark-border sm:col-span-2 lg:col-span-3">
+                                <span className="block text-xs text-gray-500 uppercase">Observações</span>
+                                <p className="text-gray-900 dark:text-white mt-1">{equipment.observacoes || 'Nenhuma observação.'}</p>
+                            </div>
+                             <div className="p-3 bg-gray-50 dark:bg-dark-bg rounded border dark:border-dark-border">
+                                <span className="block text-xs text-gray-500 uppercase">Specs</span>
+                                <span className="font-medium text-gray-900 dark:text-white text-xs">{equipment.identificador} {equipment.memoriaFisicaTotal}</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'history' && (
+                        <div className="space-y-4">
+                            {loadingHistory ? (
+                                <div className="text-center py-4"><Icon name="LoaderCircle" className="animate-spin mx-auto"/></div>
+                            ) : history.length === 0 ? (
+                                <p className="text-center text-gray-500">Nenhum histórico encontrado.</p>
+                            ) : (
+                                <div className="relative border-l-2 border-gray-200 dark:border-gray-700 ml-3">
+                                    {history.map((item) => (
+                                        <div key={item.id} className="mb-6 ml-4">
+                                            <div className="absolute w-3 h-3 bg-brand-primary rounded-full -left-[21px] mt-1.5 border border-white dark:border-dark-card"></div>
+                                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-1">
+                                                <span className="text-sm font-bold text-gray-900 dark:text-white">{item.changeType}</span>
+                                                <time className="text-xs text-gray-500 dark:text-gray-400">{new Date(item.timestamp).toLocaleString('pt-BR')}</time>
+                                            </div>
+                                            <p className="text-sm text-gray-600 dark:text-gray-300">Alterado por: <strong>{item.changedBy}</strong></p>
+                                            {item.from_value && item.to_value ? (
+                                                <div className="mt-2 text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded">
+                                                    <div className="text-red-600 line-through mb-1">De: {item.from_value.substring(0, 100)}...</div>
+                                                    <div className="text-green-600">Para: {item.to_value.substring(0, 100)}...</div>
+                                                </div>
+                                            ) : (
+                                                <p className="text-xs text-gray-500 mt-1">Detalhes da alteração não disponíveis em formato simples.</p>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {activeTab === 'terms' && (
+                         <div className="flex flex-col gap-4 items-center justify-center py-8">
+                            <p className="text-gray-600 dark:text-gray-300 mb-4 text-center">
+                                Gere termos de responsabilidade para este equipamento e o usuário atual: <strong>{equipment.usuarioAtual || 'N/A'}</strong>
+                            </p>
+                            <div className="flex gap-4">
+                                <button 
+                                    onClick={() => setSelectedTermo('entrega')}
+                                    className="flex flex-col items-center justify-center p-6 border-2 border-brand-primary rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors w-48"
+                                >
+                                    <Icon name="FileText" size={32} className="text-brand-primary mb-2" />
+                                    <span className="font-bold text-brand-dark dark:text-white">Termo de Entrega</span>
+                                </button>
+                                <button 
+                                    onClick={() => setSelectedTermo('devolucao')}
+                                    className="flex flex-col items-center justify-center p-6 border-2 border-orange-500 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors w-48"
+                                >
+                                    <Icon name="FileOutput" size={32} className="text-orange-500 mb-2" />
+                                    <span className="font-bold text-brand-dark dark:text-white">Termo de Devolução</span>
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+                <div className="p-4 bg-gray-50 dark:bg-dark-card/50 border-t dark:border-dark-border flex justify-end">
+                    <button onClick={onClose} className="px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-white rounded-md hover:bg-gray-400">Fechar</button>
+                </div>
+            </div>
+
+            {selectedTermo && (
+                <TermoResponsabilidade
+                    equipment={equipment}
+                    user={currentUser}
+                    onClose={() => setSelectedTermo(null)}
+                    companyName={companyName}
+                    termoType={selectedTermo}
+                />
+            )}
+        </div>
+    );
+}
+
+// --- LISTA PRINCIPAL ---
 interface EquipmentListProps {
   currentUser: User;
   companyName: string;
@@ -172,7 +346,7 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ currentUser, companyName 
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingEquipment, setEditingEquipment] = useState<Equipment | null>(null);
-    const [selectedTermo, setSelectedTermo] = useState<{equipment: Equipment, type: 'entrega' | 'devolucao'} | null>(null);
+    const [viewingEquipment, setViewingEquipment] = useState<Equipment | null>(null);
     
     const loadEquipment = async () => {
         setLoading(true);
@@ -274,6 +448,16 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ currentUser, companyName 
         }
     };
 
+    // Função auxiliar para cor do status
+    const getStatusColorClass = (status: string | undefined) => {
+        const s = (status || '').toUpperCase().trim();
+        if (s === 'EM USO') return 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200';
+        if (s === 'ESTOQUE') return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200';
+        if (s.includes('MANUT')) return 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-200';
+        if (s.includes('DESCART')) return 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200';
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+    };
+
     return (
         <div className="bg-white dark:bg-dark-card p-4 sm:p-6 rounded-lg shadow-md">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-4 gap-4">
@@ -288,7 +472,7 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ currentUser, companyName 
                 </div>
             </div>
 
-            <div className="mb-4">
+            <div className="mb-4 flex flex-col sm:flex-row gap-4 items-center">
                 <input 
                     type="text" 
                     placeholder="Buscar por nome, patrimônio, serial ou usuário..." 
@@ -296,6 +480,9 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ currentUser, companyName 
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full p-2 border dark:border-dark-border rounded-md bg-white dark:bg-gray-800 text-gray-800 dark:text-dark-text-primary"
                 />
+                <div className="whitespace-nowrap text-sm text-gray-500 dark:text-dark-text-secondary font-medium">
+                    {filteredEquipment.length} itens encontrados
+                </div>
             </div>
 
             {loading ? (
@@ -325,35 +512,14 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ currentUser, companyName 
                                     <td className="px-6 py-4">{item.usuarioAtual}</td>
                                     <td className="px-6 py-4">{item.setor}</td>
                                     <td className="px-6 py-4">
-                                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                            item.status === 'Em Uso' ? 'bg-green-100 text-green-800' :
-                                            item.status === 'Estoque' ? 'bg-yellow-100 text-yellow-800' :
-                                            item.status === 'Manutenção' ? 'bg-orange-100 text-orange-800' :
-                                            'bg-gray-100 text-gray-800'
-                                        }`}>
-                                            {item.status}
+                                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColorClass(item.status)}`}>
+                                            {item.status || 'Indefinido'}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-right flex justify-end gap-2">
-                                        <div className="relative group">
-                                            <button className="text-gray-500 hover:text-brand-primary dark:text-gray-400 dark:hover:text-white">
-                                                <Icon name="FileText" size={18} />
-                                            </button>
-                                            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 z-10 hidden group-hover:block border dark:border-dark-border">
-                                                <button 
-                                                    onClick={() => setSelectedTermo({equipment: item, type: 'entrega'})}
-                                                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                                >
-                                                    Termo de Entrega
-                                                </button>
-                                                <button 
-                                                    onClick={() => setSelectedTermo({equipment: item, type: 'devolucao'})}
-                                                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                                >
-                                                    Termo de Devolução
-                                                </button>
-                                            </div>
-                                        </div>
+                                        <button onClick={() => setViewingEquipment(item)} className="text-gray-500 hover:text-brand-primary dark:text-gray-400 dark:hover:text-white" title="Visualizar Detalhes e Histórico">
+                                            <Icon name="Eye" size={18} />
+                                        </button>
                                         <button onClick={() => handleEdit(item)} className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300" title="Editar">
                                             <Icon name="Pencil" size={18} />
                                         </button>
@@ -387,13 +553,12 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ currentUser, companyName 
                 />
             )}
 
-            {selectedTermo && (
-                <TermoResponsabilidade
-                    equipment={selectedTermo.equipment}
-                    user={currentUser}
-                    onClose={() => setSelectedTermo(null)}
+            {viewingEquipment && (
+                <EquipmentDetailsModal
+                    equipment={viewingEquipment}
+                    onClose={() => setViewingEquipment(null)}
+                    currentUser={currentUser}
                     companyName={companyName}
-                    termoType={selectedTermo.type}
                 />
             )}
         </div>
